@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Style Financial Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif; /* Closer to Apple's San Francisco */
+            background: #f8f8f8;
+            color: #1d1d1f;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: #fff;
+            padding: 20px 0;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        header nav ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        header nav ul li {
+            display: inline;
+            margin: 0 20px;
+        }
+
+        header nav ul li a {
+            text-decoration: none;
+            color: #1d1d1f;
+            font-size: 16px;
+            transition: color 0.2s ease-in-out;
+        }
+
+        header nav ul li a:hover {
+            color: #06c;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 60px);
+            padding-top: 60px; /* Offset for header */
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            width: 300px;
+            margin-top: 20px;
+            text-align: center;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        input[type="text"], input[type="number"], select, button {
+            padding: 10px;
+            border: 1px solid #d1d1d6;
+            border-radius: 8px;
+            margin: 10px 0;
+            width: 100%; /* Full width */
+            box-sizing: border-box; /* Padding and border included in width */
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus, select:focus, button:focus {
+            border-color: #06c;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .balance {
+            font-size: 1.5rem;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .see-all {
+            margin-top: 10px;
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .see-all:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            background: #fff;
+            text-align: center;
+            padding: 10px 0;
+            box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="#">Home</a></li>
+                <li><a href="#">Products</a></li>
+                <li><a href="#">Services</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="card form-container">
+            <h2>Transaction Entry</h2>
+            <form id="transactionForm">
+                <input type="text" id="transactionDesc" placeholder="Description" required>
+                <input type="number" id="transactionAmount" placeholder="Amount" required>
+                <select id="transactionType">
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                </select>
+                <button type="submit">Add Transaction</button>
+            </form>
+        </div>
+        <div class="card data-container">
+            <h2>Transactions</h2>
+            <ul id="transactionList"></ul>
+            <button class="see-all" id="toggleView">See All</button>
+            <div class="balance" id="totalBalance">Balance: $0</div>
+        </div>
+        <div class="card chart-container">
+            <h2>Spending Breakdown</h2>
+            <canvas id="moneyChart"></canvas>
+        </div>
+    </div>
+    <footer>
+        <p>Copyright © 2024 Your Company.</p>
+    </footer>
+    <script>
+        let allTransactions = [];
+        let viewAll = false;
+        let moneyChart;
+
+        document.getElementById('transactionForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const desc = document.getElementById('transactionDesc').value;
+            const amount = parseFloat(document.getElementById('transactionAmount').value);
+            const type = document.getElementById('transactionType').value;
+            if (desc && amount) {
+                const transaction = { desc, amount, type };
+                allTransactions.unshift(transaction); // Add to the start of the array
+                updateDisplay();
+                document.getElementById('transactionDesc').value = '';
+                document.getElementById('transactionAmount').value = '';
+                saveTransactions();
+                updateBalance();
+                updateChart();
+            }
+        });
+
+        document.getElementById('toggleView').addEventListener('click', function() {
+            viewAll = !viewAll;
+            updateDisplay();
+        });
+
+        function loadSavedTransactions() {
+            allTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+            updateDisplay();
+            updateBalance();
+            updateChart();
+        }
+
+        function saveTransactions() {
+            localStorage.setItem('transactions', JSON.stringify(allTransactions));
+        }
+
+        function updateDisplay() {
+            const list = document.getElementById('transactionList');
+            list.innerHTML = '';
+            const transactionsToShow = viewAll ? allTransactions : allTransactions.slice(0, 3);
+            transactionsToShow.forEach(transaction => {
+                const entry = document.createElement('li');
+                entry.textContent = `${transaction.desc} - $${transaction.amount} (${transaction.type})`;
+                list.appendChild(entry);
+            });
+            document.getElementById('toggleView').textContent = viewAll ? "See Less" : "See All";
+        }
+
+        function updateBalance() {
+            let balance = 0;
+            allTransactions.forEach(transaction => {
+                if (transaction.type === 'income') {
+                    balance += transaction.amount;
+                } else if (transaction.type === 'expense') {
+                    balance -= transaction.amount;
+                }
+            });
+            document.getElementById('totalBalance').textContent = `Balance: $${balance.toFixed(2)}`;
+        }
+
+        function updateChart() {
+            const income = allTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+            const expense = allTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+            const ctx = document.getElementById('moneyChart').getContext('2d');
+            if (moneyChart) moneyChart.destroy();
+            moneyChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Income', 'Expense'],
+                    datasets: [{
+                        label: 'Spending Breakdown',
+                        data: [income, expense],
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(255, 99, 132, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 99, 132, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        window.onload = loadSavedTransactions;
+    </script>
+</body>
+</html>
